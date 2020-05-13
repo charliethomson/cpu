@@ -1,0 +1,16 @@
+
+Labels are not indented, and are snake case followed by a colon:
+this will insert a label in the assembler saying hey, if you see `snake_case`, 
+i mean the address of the instruction directly following this label
+
+snake_case:
+
+Instructions must be indented, this can be spaces or tabs
+example:
+    LDA 0x40
+
+two semicolons (;;) anywhere in a line denotes a comment, nothing after will be seen by the assembler
+foo_bar:
+    LDA 0x40 ;; Get the value from biz baz into the accumulator
+
+That's really about it lol

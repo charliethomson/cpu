@@ -1,0 +1,13 @@
+
+byte x;
+byte y;
+byte z;
+
+x = 0;
+y = 1;
+while z < 255 {
+    print z;
+    z = x + y;        
+    x = y;
+    y = z;
+}

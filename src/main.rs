@@ -1,4 +1,4 @@
-pub const MEMORY_SIZE: usize = 128;
+pub const MEMORY_SIZE: usize = 255;
 pub const DEBUG: bool = false;
 
 pub(crate) mod asm;
@@ -7,7 +7,6 @@ pub(crate) mod error;
 pub(crate) mod flags;
 pub(crate) mod instruction;
 pub(crate) mod memory;
-pub(crate) mod util;
 
 fn main() -> Result<(), error::CpuError> {
     let mut cpu = cpu::Cpu::from_binary("./tests/fib.bin").unwrap();
@@ -96,9 +95,37 @@ mod tests {
         ]);
 
         match cpu.run() {
+            Err(error::CpuError::Exit(1)) => eprintln!("Exited correctly"),
             Err(error::CpuError::Exit(code)) => panic!("Exited with code {}", code),
             Err(e) => panic!("{:?}", e),
             _ => (),
         };
+    }
+
+    #[test]
+    fn test_assemble_and_run() {
+        let file_handle = std::fs::File::open("./tests/fib.as").unwrap();
+        let mut assembler = asm::assembler::Assembler::new(file_handle);
+        let nbytes = match assembler.parse() {
+            Ok(nbytes) => nbytes,
+            Err(e) => panic!("Encountered an error parsing \"./tests/fib.as\": {:?}", e),
+        };
+
+        eprintln!("Assembled {} bytes from \"./tests/fib.as\"", nbytes);
+        let mut cpu = cpu::Cpu::new();
+        cpu.memory = memory::Memory::new_with_instructions(&assembler.get_output());
+
+        match cpu.run() {
+            Err(error::CpuError::Exit(exit_code)) => {
+                if exit_code == 1 {
+                    eprintln!("Exited correctly");
+                    return;
+                } else {
+                    unreachable!();
+                }
+            }
+            Err(e) => panic!("{:?}", e),
+            Ok(()) => return,
+        }
     }
 }

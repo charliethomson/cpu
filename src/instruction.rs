@@ -1,26 +1,27 @@
+use crate::asm::error::AssemblerError;
 use crate::cpu::Cpu;
 use crate::error::CpuError;
-use crate::DEBUG;
+use std::convert::TryFrom;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Instruction {
     LDA(u8),
     STA(u8),
-    INC,
-    DEC,
     SETV(u8),
     SETA(u8),
     STR(u8),
     LOAD(u8),
-    ADD,
-    SUB,
     JMP(u8),
     JC(u8),
     JZ(u8),
     JO(u8),
+    EXIT(u8),
+    INC,
+    DEC,
+    ADD,
+    SUB,
     NOP,
     OUT,
-    EXIT(u8),
     CLN,
 }
 impl Instruction {
@@ -84,6 +85,29 @@ impl Instruction {
         Ok(())
     }
 
+    pub fn as_bytes(&self) -> Vec<u8> {
+        match self {
+            Instruction::EXIT(ex_code) => vec![0x11, *ex_code],
+            Instruction::STA(v) => vec![0x02, *v],
+            Instruction::LDA(v) => vec![0x01, *v],
+            Instruction::SETV(v) => vec![0x05, *v],
+            Instruction::SETA(v) => vec![0x06, *v],
+            Instruction::STR(v) => vec![0x07, *v],
+            Instruction::LOAD(v) => vec![0x08, *v],
+            Instruction::JMP(v) => vec![0x0B, *v],
+            Instruction::JC(v) => vec![0x0C, *v],
+            Instruction::JZ(v) => vec![0x0E, *v],
+            Instruction::JO(v) => vec![0x0F, *v],
+            Instruction::INC => vec![0x03],
+            Instruction::DEC => vec![0x04],
+            Instruction::ADD => vec![0x09],
+            Instruction::SUB => vec![0x0A],
+            Instruction::OUT => vec![0x10],
+            Instruction::NOP => vec![0x00],
+            Instruction::CLN => vec![0x12],
+        }
+    }
+
     pub fn from_byte(byte: u8) -> Option<Self> {
         match byte {
             0x00 => Some(Self::NOP),
@@ -136,6 +160,101 @@ impl From<Instruction> for String {
             Instruction::NOP => format!("NOP"),
             Instruction::EXIT(v) => format!("EXIT {}", v),
             Instruction::CLN => format!("CLN"),
+        }
+    }
+}
+impl TryFrom<String> for Instruction {
+    // Ok(instruction_byte, arg_string)
+    // Err(error_string)
+    type Error = Result<(u8, String), String>;
+    fn try_from(s: String) -> Result<Instruction, Self::Error> {
+        let s = s.trim();
+        if s.contains(" ") {
+            let mut parts = s.split_whitespace();
+
+            let instr_str = match parts.next() {
+                Some(is) => is,
+                None => unreachable!(),
+            };
+            let arg_str = match parts.next() {
+                Some(arg) => arg,
+                None => return Err(Err(format!("Expected argument for {:?}", instr_str))),
+            };
+
+            let arg = if arg_str.chars().all(|c| c.is_numeric()) {
+                match arg_str.parse::<u8>() {
+                    Ok(arg) => arg,
+                    Err(e) => {
+                        return Err(Err(format!(
+                            "Encountered an error parsing {} as u8: {}",
+                            arg_str, e
+                        )))
+                    }
+                }
+            } else if arg_str.contains("0x") {
+                let arg_str = arg_str.trim_start_matches("0x");
+                match u8::from_str_radix(arg_str, 16) {
+                    Ok(num) => num,
+                    Err(e) => {
+                        return Err(Err(format!(
+                            "Encountered an error parsing {} as u8: {}",
+                            arg_str, e
+                        )))
+                    }
+                }
+            } else if arg_str.contains("0b") {
+                let arg_str = arg_str.trim_start_matches("0b");
+                match u8::from_str_radix(arg_str, 2) {
+                    Ok(num) => num,
+                    Err(e) => {
+                        return Err(Err(format!(
+                            "Encountered an error parsing {} as u8: {}",
+                            arg_str, e
+                        )))
+                    }
+                }
+            } else {
+                let instruction_byte = match instr_str.trim().to_uppercase().as_str() {
+                    "EXIT" => 0x11,
+                    "STA" => 0x02,
+                    "LDA" => 0x01,
+                    "SETV" => 0x05,
+                    "SETA" => 0x06,
+                    "STR" => 0x07,
+                    "LOAD" => 0x08,
+                    "JMP" => 0x0B,
+                    "JC" => 0x0C,
+                    "JZ" => 0x0E,
+                    "JO" => 0x0F,
+                    _ => 0,
+                };
+                return Err(Ok((instruction_byte, arg_str.to_owned())));
+            };
+            match instr_str.trim().to_uppercase().as_str() {
+                "LDA" => Ok(Instruction::LDA(arg)),
+                "STA" => Ok(Instruction::STA(arg)),
+                "SETV" => Ok(Instruction::SETV(arg)),
+                "SETA" => Ok(Instruction::SETA(arg)),
+                "STR" => Ok(Instruction::STR(arg)),
+                "LOAD" => Ok(Instruction::LOAD(arg)),
+                "JMP" => Ok(Instruction::JMP(arg)),
+                "JC" => Ok(Instruction::JC(arg)),
+                "JZ" => Ok(Instruction::JZ(arg)),
+                "JO" => Ok(Instruction::JO(arg)),
+                "EXIT" => Ok(Instruction::EXIT(arg)),
+                _ => Err(Err(format!("Unknown instruction {}", instr_str))),
+            }
+        } else {
+            match s.trim().to_uppercase().as_str() {
+                "INC" => Ok(Instruction::INC),
+                "DEC" => Ok(Instruction::DEC),
+                "ADD" => Ok(Instruction::ADD),
+                "SUB" => Ok(Instruction::SUB),
+                "NOP" => Ok(Instruction::NOP),
+                "OUT" => Ok(Instruction::OUT),
+                "CLN" => Ok(Instruction::CLN),
+                _ => Err(Err(format!("Expected argument for {:?}", s))),
+            }
         }
     }
 }
